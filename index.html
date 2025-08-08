@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Game Scoreboard</title>
+</head>
+<body>
+    <h1>Game Scoreboard</h1>
+    <form method="POST" action="/add">
+        <input name="name" placeholder="Name" required>
+        <input name="game" placeholder="Game" required>
+        <input name="score" type="number" placeholder="Score" required>
+        <button type="submit">Add</button>
+    </form>
+    <h2>Scores</h2>
+    <table border="1">
+        <tr><th>Name</th><th>Game</th><th>Score</th></tr>
+        {% for s in scores %}
+        <tr><td>{{ s.name }}</td><td>{{ s.game }}</td><td>{{ s.score }}</td></tr>
+        {% endfor %}
+    </table>
+    <p>Average Score: {{ average }}</p>
+    <form method="POST" action="/sort">
+        <select name="key">
+            <option value="name">Name</option>
+            <option value="game">Game</option>
+            <option value="score">Score</option>
+        </select>
+        <button type="submit">Sort</button>
+    </form>
+</body>
+</html>

@@ -1,0 +1,6 @@
+global:
+  application_name: game-scoreboard-ha
+  default_region: us-east-1
+  platform: Python 3.8
+  branch: null
+  repository: null
