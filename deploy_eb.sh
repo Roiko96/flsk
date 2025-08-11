@@ -1,10 +1,46 @@
-#!/bin/bash
-set -e
-export AWS_ACCESS_KEY_ID="ASIAXUE2UGNNNSY2RAK4"
-export AWS_SECRET_ACCESS_KEY="UoajYj00ziL7pCUte8AWblbBMnw65NL7MOPH9dRb"
-export AWS_SESSION_TOKEN="IQoJb3JpZ2luX2VjEHEaCXVzLXdlc3QtMiJHMEUCIQCpqirKXZ4TW7OqPnyMiQj7qnORp4vCDbptc2AE/hcfywIgfxg1S679rqJ/2qZ7xEw5WiCTLj0IzEerWs1I/fUetHEqsgIIqv//////////ARAAGgw1MjQzMTAyOTUzODYiDKWbml/GNDpWmjAcACqGArnJF1nozUe9XupfwvZ2CvGe8P7nja2Y42xdoGH+Qd/J0Sf78KrKcG7nZWVVY1qKjIakPJZZ1DsQC7yakNaXPHK+bGAhtIB/KGiM5jBMckOy49k2qmW8nPkMdjlZF5ekyIlDPZcguXzhMoK8L7l3cNVm3LzCctvaH/FaIEJaceLJNI7FfZ9bM4UFYfE4T3YavNQRsNFyDSsk40t9y0fXoy4GqyQFxbFWCFLMk9WQa9zPACeAKK3/V9xTeb7j63O+AqkRK5YGp/LSsgeLrtEd74RJKKPfvbmWFSGWabzpfL57Rw2nn8qesM5pjmbA6Z1r5YW3nbJMRvQ4BmQA9szLiTmOnLvAnVcw5uHYxAY6nQGzmogSZrLxj85NhPeJJHQD9Au3HkQJO5805EAC7A7GsscAG/Lzm8SK16afiwW4hoJ5j4q/XsMm7AA0n6Mk0zfC/btHeqJeA6iqO7L7lRn82mlmhANX7bKucy/7UAZ+vARpPs0XxOCQkC0FDLN+MDxHdo8wF2B2FoVDLZ24Xf0aQonrvPGxZC0zxHCtQkgSnmqkFFOOI6bngu1VQ5Uc"
+#!/usr/bin/env bash
+set -euo pipefail
 
-echo "Initializing Elastic Beanstalk..."
-eb init -p python-3.8 game-scoreboard-ha --region us-east-1 --platform "Docker"
-eb create game-scoreboard-env
-eb open
+REGION="us-east-1"              # * אזור
+APP="game-scoreboard-app"       # * שם אפליקציה
+ENV="game-scoreboard-env"       # * שם סביבה
+PLAT1='Docker running on 64bit Amazon Linux 2023'
+PLAT2='Docker running on 64bit Amazon Linux 2'
+
+echo "[1/5] אימות AWS בסביבת הלמידה (Cloud9 כבר מחובר)..."
+aws sts get-caller-identity >/dev/null
+
+echo "[2/5] התקנת EB CLI (אם צריך)..."
+if ! command -v eb >/dev/null 2>&1; then
+  pip3 install --user --upgrade awsebcli
+  export PATH="$HOME/.local/bin:$PATH"
+fi
+
+echo "[3/5] EB init..."
+if [[ ! -f .elasticbeanstalk/config.yml ]]; then
+  (printf "n\n") | eb init -p "$PLAT1" "$APP" --region "$REGION" || \
+  (printf "n\n") | eb init -p "$PLAT2" "$APP" --region "$REGION"
+else
+  echo "config.yml קיים - דילוג על init"
+fi
+
+echo "[4/5] יצירת/עדכון סביבה (ALB + Multi-AZ)..."
+if eb list 2>/dev/null | grep -qx "$ENV"; then
+  eb deploy "$ENV"
+else
+  eb create "$ENV" --elb-type application --scale 2 --region "$REGION"
+fi
+
+echo "[5/5] המתנה ל-Green והדפסת ה-URL היציב..."
+for i in {1..30}; do
+  STATUS=$(eb status "$ENV" | awk -F': ' '/Status/{print $2}')
+  HEALTH=$(eb status "$ENV" | awk -F': ' '/Health/{print $2}')
+  echo "Status: $STATUS | Health: $HEALTH"
+  [[ "$HEALTH" == "Green" ]] && break
+  sleep 20
+done
+
+CNAME=$(eb status "$ENV" | awk -F': ' '/CNAME/{print $2}')
+echo "============================================================"
+echo "App URL (יציב מאחורי ALB):  http://$CNAME"
+echo "============================================================"
