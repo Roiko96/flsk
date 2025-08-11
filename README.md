@@ -9,7 +9,7 @@
 
 ## פריסה מהירה ב‑AWS (Elastic Beanstalk + HA)
 
-```bash
+```
 sudo apt-get update -y
 pip3 install --user --upgrade awsebcli
 export PATH=$PATH:$HOME/.local/bin
