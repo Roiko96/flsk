@@ -15,13 +15,13 @@ def index():
 def add():
     name = request.form.get("name", "").strip()   # * שם
     game = request.form.get("game", "").strip()   # * משחק
-    score_raw = request.form.get("score", "").strip()  # * ניקוד (טקסט גולמי)
+    score_raw = request.form.get("score", "").strip()  # * ניקוד (טקסט)
     if name and game and score_raw:  # * ולידציה בסיסית
         try:
             add_score_data(name, game, float(score_raw))  # * המרה לשבר
         except ValueError:
-            pass  # * קלט לא תקין – מתעלמים
-    return redirect(url_for("index"))  # * רענון הדף אחרי פעולה (PRG)
+            pass
+    return redirect(url_for("index"))  # * רענון הדף (PRG)
 
 @app.route("/delete", methods=["POST"])  # * מחיקה
 def delete():
