@@ -1,58 +1,67 @@
-# application.py – שרת Flask
-from flask import Flask, render_template, request, redirect, url_for  # * יבוא Flask ותבניות
-from functions import (  # * לוגיקה עסקית
-    add_score_data, delete_score_by_name, sort_scores_by_key,
-    calculate_average, edit_score_data, get_scores
-)
+from flask import Flask, render_template, request, redirect, url_for
+from functions import add_score_data, delete_score_by_name, edit_score_data, get_scores
+import os, re
 
-app = Flask(__name__)  # * יצירת אפליקציית Flask
+app = Flask(__name__)
 
-@app.route("/")  # * דף ראשי
+def _parse_score(raw: str):
+    if raw is None: return None
+    raw = raw.strip().replace(",", ".")
+    raw = re.sub(r"[^0-9.\-]", "", raw)
+    try:
+        return float(raw)
+    except Exception:
+        return None
+
+@app.after_request
+def no_cache(resp):
+    resp.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+    resp.headers["Pragma"] = "no-cache"
+    resp.headers["Expires"] = "0"
+    return resp
+
+@app.context_processor
+def inject_host():
+    return {"host": os.getenv("HOSTNAME", "eb")}
+
+@app.route("/")
 def index():
-    return render_template("index.html", scores=get_scores())  # * הצגת הטבלה
+    sort_key = request.args.get("sort")
+    order = request.args.get("order", "asc")
+    return render_template("index.html", scores=get_scores(sort_key, order))
 
-@app.route("/add", methods=["POST"])  # * הוספה
+@app.route("/add", methods=["POST"])
 def add():
-    name = request.form.get("name", "").strip()   # * שם
-    game = request.form.get("game", "").strip()   # * משחק
-    score_raw = request.form.get("score", "").strip()  # * ניקוד (טקסט)
-    if name and game and score_raw:  # * ולידציה בסיסית
-        try:
-            add_score_data(name, game, float(score_raw))  # * המרה לשבר
-        except ValueError:
-            pass
-    return redirect(url_for("index"))  # * רענון הדף (PRG)
+    name = request.form.get("name","").strip()
+    game = request.form.get("game","").strip()
+    score = _parse_score(request.form.get("score",""))
+    if name and game and score is not None:
+        add_score_data(name, game, score)
+    # מוסיפים קוורי קטן כדי לשבור קאש של פרוקסי אם יש
+    return redirect(url_for("index", t=int(os.times().elapsed*1000)))
 
-@app.route("/delete", methods=["POST"])  # * מחיקה
+@app.route("/delete", methods=["POST"])
 def delete():
-    name = request.form.get("name", "").strip()
+    name = request.form.get("name","").strip()
     if name:
         delete_score_by_name(name)
-    return redirect(url_for("index"))
+    return redirect(url_for("index", t=int(os.times().elapsed*1000)))
 
-@app.route("/sort/<key>")  # * מיון
+@app.route("/sort/<key>")
 def sort_view(key):
-    sort_scores_by_key(key)
-    return redirect(url_for("index"))
+    order = "desc" if key == "score" else "asc"
+    return redirect(url_for("index", sort=key, order=order, t=int(os.times().elapsed*1000)))
 
-@app.route("/average")  # * ממוצע
-def average():
-    avg = calculate_average()
-    return render_template("index.html", scores=get_scores(), average=avg)
-
-@app.route("/edit", methods=["POST"])  # * עריכה
+@app.route("/edit", methods=["POST"])
 def edit():
-    cur_name = request.form.get("current_name", "").strip()
-    cur_game = request.form.get("current_game", "").strip()
-    new_name = request.form.get("new_name", "").strip()
-    new_game = request.form.get("new_game", "").strip()
-    new_score_raw = request.form.get("new_score", "").strip()
-    if cur_name and cur_game and new_name and new_game and new_score_raw:
-        try:
-            edit_score_data(cur_name, cur_game, new_name, new_game, float(new_score_raw))
-        except ValueError:
-            pass
-    return redirect(url_for("index"))
+    cur_name = request.form.get("current_name","").strip()
+    cur_game = request.form.get("current_game","").strip()
+    new_name = request.form.get("new_name","").strip()
+    new_game = request.form.get("new_game","").strip()
+    new_score = _parse_score(request.form.get("new_score",""))
+    if cur_name and cur_game and new_name and new_game and new_score is not None:
+        edit_score_data(cur_name, cur_game, new_name, new_game, new_score)
+    return redirect(url_for("index", t=int(os.times().elapsed*1000)))
 
-if __name__ == "__main__":  # * הרצה מקומית
-    app.run(host="0.0.0.0", port=5000)  # * מאזין על 5000 לכל הכתובות
+if __name__ == "__main__":
+    app.run(host="0.0.0.0", port=5000)
