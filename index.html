@@ -1,86 +1,99 @@
 <!doctype html>
-<html lang="he" dir="rtl">
+<html lang="en">
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>Game Scoreboard</title>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>game scoreboard</title>
   <style>
-    body { font-family: system-ui, Arial, sans-serif; margin: 2rem; }
-    header { display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem; }
-    table { width:100%; border-collapse:collapse; margin-top:1rem; }
-    th, td { border:1px solid #ddd; padding:.5rem .6rem; text-align:center; }
-    th a { text-decoration:none; }
-    form { display:grid; gap:.5rem; grid-template-columns: repeat(6, 1fr); margin-top:1rem; }
-    form input, button { padding:.45rem; }
-    .muted { color:#666; font-size:.9rem; }
-    .bar { display:flex; gap:.5rem; align-items:center; flex-wrap:wrap; }
-    .card { border:1px solid #eee; padding:1rem; border-radius:.5rem; }
+    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; margin: 24px; }
+    header { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 12px; }
+    h1 { margin: 0; font-size: 1.5rem; text-transform: none; }
+    small { color: #555; }
+    .toolbar a { margin-right: 8px; text-decoration: none; border:1px solid #ccc; padding:2px 8px; border-radius:999px; font-size:.85rem; }
+    table { border-collapse: collapse; width: 100%; margin-top: 12px; }
+    th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+    th { background: #f5f5f5; }
+    form { margin: 16px 0; }
+    fieldset { border: 1px solid #ddd; padding: 12px; }
+    legend { padding: 0 6px; color: #444; }
+    input[type="text"], input[type="number"] { padding: 6px; width: 100%; box-sizing: border-box; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 16px; }
+    .actions { margin-top: 10px; }
   </style>
-  <script>
-    window.addEventListener('pageshow', function(e){ if(e.persisted) location.reload(); });
-    setInterval(()=>{ fetch('/healthz').catch(()=>{}); }, 60000);
-  </script>
 </head>
 <body>
-<header>
-  <h1>Game Scoreboard</h1>
-  <div class="muted">Host: {{ host }}</div>
-</header>
+  <header>
+    <h1>game scoreboard</h1>
+    <small>host: {{ host }}</small>
+  </header>
 
-<div class="bar">
-  <a href="/sort/name" class="card">מיין לפי שם</a>
-  <a href="/sort/game" class="card">מיין לפי משחק</a>
-  <a href="/sort/score" class="card">מיין לפי ציון (יורד)</a>
-  <a href="/average" class="card">ממוצע</a>
-  <a href="/" class="card">רענון</a>
-</div>
+  <div class="toolbar">
+    <a href="{{ url_for('sort_view', key='name') }}">sort by name</a>
+    <a href="{{ url_for('sort_view', key='game') }}">sort by game</a>
+    <a href="{{ url_for('sort_view', key='score') }}">sort by score (desc)</a>
+    <a href="{{ url_for('index', average=1) }}">average</a>
+    <a href="{{ url_for('index') }}">refresh</a>
+  </div>
 
-{% if average is defined %}
-  <p><strong>ממוצע ציונים:</strong> {{ average }}</p>
-{% endif %}
-
-<table>
-  <thead>
-    <tr><th>שם</th><th>משחק</th><th>ציון</th></tr>
-  </thead>
-  <tbody>
-  {% for s in scores %}
-    <tr>
-      <td>{{ s.name }}</td>
-      <td>{{ s.game }}</td>
-      <td>{{ s.score }}</td>
-    </tr>
-  {% endfor %}
-  {% if not scores %}
-    <tr><td colspan="3" class="muted">אין נתונים עדיין</td></tr>
+  {% if average is defined %}
+    <p><strong>average score:</strong> {{ average }}</p>
   {% endif %}
-  </tbody>
-</table>
 
-<h3>הוספה</h3>
-<form action="/add" method="post">
-  <input name="name" placeholder="שם" required>
-  <input name="game" placeholder="משחק" required>
-  <input name="score" placeholder="ציון (למשל 98 או 98,5)" required>
-  <button type="submit">הוסף</button>
-</form>
+  <table>
+    <thead>
+      <tr><th>name</th><th>game</th><th>score</th></tr>
+    </thead>
+    <tbody>
+      {% if scores %}
+        {% for row in scores %}
+          <tr>
+            <td>{{ row.name if row.name is defined else row['name'] }}</td>
+            <td>{{ row.game if row.game is defined else row['game'] }}</td>
+            <td>{{ row.score if row.score is defined else row['score'] }}</td>
+          </tr>
+        {% endfor %}
+      {% else %}
+        <tr><td colspan="3">no scores yet.</td></tr>
+      {% endif %}
+    </tbody>
+  </table>
 
-<h3>מחיקה לפי שם</h3>
-<form action="/delete" method="post">
-  <input name="name" placeholder="שם למחיקה" required>
-  <button type="submit">מחק</button>
-</form>
+  <div class="grid">
+    <form action="/add" method="post">
+      <fieldset>
+        <legend>add score</legend>
+        <label>name</label><input name="name" type="text" required />
+        <label>game</label><input name="game" type="text" required />
+        <label>score</label><input name="score" type="number" step="any" required />
+        <div class="actions"><button type="submit">add</button></div>
+      </fieldset>
+    </form>
 
-<h3>עריכה</h3>
-<form action="/edit" method="post">
-  <input name="current_name" placeholder="שם נוכחי" required>
-  <input name="current_game" placeholder="משחק נוכחי" required>
-  <input name="new_name" placeholder="שם חדש" required>
-  <input name="new_game" placeholder="משחק חדש" required>
-  <input name="new_score" placeholder="ציון חדש" required>
-  <button type="submit">עדכן</button>
-</form>
+    <form action="/delete" method="post">
+      <fieldset>
+        <legend>delete by name (optional: by game)</legend>
+        <label>name</label><input name="name" type="text" required />
+        <label>game (optional)</label><input name="game" type="text" />
+        <div class="actions"><button type="submit">delete</button></div>
+      </fieldset>
+    </form>
 
-<p class="muted">דמו ללא מסד נתונים; ב‑Scaling הנתונים נשמרים פר‑אינסטנס.</p>
+    <form action="/edit" method="post">
+      <fieldset>
+        <legend>edit a score</legend>
+        <label>current name</label><input name="current_name" type="text" required />
+        <label>current game</label><input name="current_game" type="text" required />
+        <hr/>
+        <label>new name</label><input name="new_name" type="text" placeholder="(leave blank to keep)" />
+        <label>new game</label><input name="new_game" type="text" placeholder="(leave blank to keep)" />
+        <label>new score</label><input name="new_score" type="number" step="any" placeholder="(leave blank to keep)" />
+        <div class="actions"><button type="submit">update</button></div>
+      </fieldset>
+    </form>
+  </div>
+
+  <p style="color:#666;font-size:.9rem">
+    demo only: data is in-memory per worker/instance.
+  </p>
 </body>
 </html>
