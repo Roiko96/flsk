@@ -28,3 +28,27 @@ mkdir -p templates
 # 4) הרצה (ללא sudo)
 chmod +x deploy_eb.sh
 ./deploy_eb.sh
+```
+# troubleshoot : 
+
+```
+
+# eb cli not found 
+python3 -m pip install --user --upgrade awsebcli && export PATH="$HOME/.local/bin:$PATH" && eb --version
+
+# follow events + grab logs (errors only)
+eb events --follow --region us-east-1 --environment main
+eb logs --all   --region us-east-1 --environment main | egrep -i 'error|traceback|gunicorn' | tail -n 120
+
+# check cname + health
+CNAME=$(aws elasticbeanstalk describe-environments --region us-east-1 \
+  --application-name game-scoreboard-app --environment-names main \
+  --query 'Environments[0].CNAME' --output text)
+
+curl -s -o /dev/null -w "%{http_code}\n" "http://${CNAME}/healthz"   # expect: 200
+
+# invalid/expired token?
+aws sts get-caller-identity || echo "re-export credentials from canvas"
+
+# platform not found?
+echo 'platform must be: Docker running on 64bit Amazon Linux 2023'
