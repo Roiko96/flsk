@@ -4,17 +4,12 @@ set -euo pipefail
 REGION="us-east-1"    # שנה אם צריך
 KEY_NAME="ec2-docker-key"
 SEC_GROUP="ec2-docker-sg"
-AMI_ID=$(aws ec2 describe-images \
-  --owners amazon \
-  --filters "Name=name,Values=ubuntu/images/hvm-ssd/ubuntu-jammy-22.04-amd64-server-*" \
-  --query 'Images[*].ImageId' \
-  --region "$REGION" \
-  --output text | head -n 1)
 
 echo "[1/5] יצירת מפתח SSH..."
 aws ec2 create-key-pair \
   --key-name "$KEY_NAME" \
   --query 'KeyMaterial' \
+  --region "$REGION" \
   --output text > ${KEY_NAME}.pem
 chmod 400 ${KEY_NAME}.pem
 
@@ -26,10 +21,20 @@ SG_ID=$(aws ec2 create-security-group \
   --query 'GroupId' \
   --output text)
 
-aws ec2 authorize-security-group-ingress --group-id "$SG_ID" --protocol tcp --port 22 --cidr 0.0.0.0/0
-aws ec2 authorize-security-group-ingress --group-id "$SG_ID" --protocol tcp --port 5000 --cidr 0.0.0.0/0
+aws ec2 authorize-security-group-ingress --group-id "$SG_ID" --protocol tcp --port 22 --cidr 0.0.0.0/0 --region "$REGION"
+aws ec2 authorize-security-group-ingress --group-id "$SG_ID" --protocol tcp --port 5000 --cidr 0.0.0.0/0 --region "$REGION"
 
 echo "[3/5] הרצת אינסטנס EC2..."
+
+# בחירת ה-AMI החדש ביותר של Ubuntu 22.04
+AMI_ID=$(aws ec2 describe-images \
+  --owners amazon \
+  --filters "Name=name,Values=ubuntu/images/hvm-ssd/ubuntu-jammy-22.04-amd64-server-*" \
+            "Name=state,Values=available" \
+  --query 'sort_by(Images, &CreationDate)[-1].ImageId' \
+  --region "$REGION" \
+  --output text)
+
 INSTANCE_ID=$(aws ec2 run-instances \
   --image-id "$AMI_ID" \
   --count 1 \
