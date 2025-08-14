@@ -1,0 +1,58 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: EC2 with Docker running Flask app from GitHub
+
+Parameters:
+  KeyName:
+    Type: AWS::EC2::KeyPair::KeyName
+    Description: Name of an existing EC2 KeyPair to enable SSH access
+
+Resources:
+  DockerSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Allow SSH and HTTP(5000)
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: tcp
+          FromPort: 5000
+          ToPort: 5000
+          CidrIp: 0.0.0.0/0
+
+  DockerInstance:
+    Type: AWS::EC2::Instance
+    Properties:
+      InstanceType: t2.micro
+      KeyName: !Ref KeyName
+      ImageId: !Ref LatestUbuntuAmi
+      SecurityGroups:
+        - !Ref DockerSecurityGroup
+      UserData:
+        Fn::Base64: !Sub |
+          #!/bin/bash
+          apt-get update -y
+          apt-get install -y docker.io git
+          systemctl start docker
+          systemctl enable docker
+          git clone https://github.com/roiko96/flsk /home/ubuntu/flsk
+          cd /home/ubuntu/flsk
+          docker build -t flask-app .
+          docker run -d -p 5000:5000 flask-app
+
+Mappings: {}
+
+Outputs:
+  InstancePublicIP:
+    Description: Public IP of the EC2 instance
+    Value: !GetAtt DockerInstance.PublicIp
+  AppURL:
+    Description: URL to access the Flask app
+    Value: !Sub "http://${DockerInstance.PublicIp}:5000"
+
+# Pseudo Parameter to always get latest Ubuntu 22.04 AMI
+Parameters:
+  LatestUbuntuAmi:
+    Type: AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>
+    Default: /aws/service/canonical/ubuntu/server/22.04/stable/current/amd64/hvm/ebs-gp2/ami-id
