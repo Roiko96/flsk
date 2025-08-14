@@ -2,7 +2,7 @@ AWSTemplateFormatVersion: '2010-09-09'
 Description: EC2 with Docker running Flask app from GitHub
 
 Parameters:
-  KeyName:
+  KeyName: labsuser.pem
     Type: AWS::EC2::KeyPair::KeyName
     Description: Name of an existing EC2 KeyPair to enable SSH access
 
