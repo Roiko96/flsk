@@ -5,7 +5,7 @@
 - רץ מ‑Cloud9 (AWS Academy).
 
 ## הפעלה (Cloud9)
-```bash
+```
 git clone https://github.com/roiko96/flsk.git
 cd flsk
 
