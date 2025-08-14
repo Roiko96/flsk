@@ -1,11 +1,6 @@
 option_settings:
   aws:elasticbeanstalk:environment:
-    LoadBalancerType: application   # * ALB
+    LoadBalancerType: application
   aws:autoscaling:asg:
-    MinSize: '2'                    # * HA
+    MinSize: '2'
     MaxSize: '4'
-    Availability Zones: Any 2
-  aws:elasticbeanstalk:application:environment:
-    PORT: '5000'                    # * ה־Proxy מפנה ל-5000
-  aws:elasticbeanstalk:healthreporting:system:
-    SystemType: enhanced
