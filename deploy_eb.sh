@@ -1,3 +1,8 @@
+
+---
+
+## deploy_eb.sh
+```bash
 #!/usr/bin/env bash
 set -Eeuo pipefail
 
@@ -19,7 +24,7 @@ aws sts get-caller-identity >/dev/null || die "קרדנצ'יאלס לא תקינ
 # 1) EB CLI
 export PATH="$HOME/.local/bin:$PATH"
 command -v eb >/dev/null || python3 -m pip install --user --upgrade awsebcli >/dev/null
-command -v eb >/dev/null || die "EB CLI לא הותקן. נסה שוב: python3 -m pip install --user awsebcli"
+command -v eb >/dev/null || die "EB CLI לא הותקן. נסה: python3 -m pip install --user awsebcli"
 green "EB CLI: $(eb --version)"
 
 # 2) סידור תקיות וקבצים (בטוח להרצה)
@@ -50,29 +55,51 @@ CNAME=$(aws elasticbeanstalk describe-environments --region "$REGION" --applicat
 URL="http://${CNAME}"
 green "URL: $URL"
 
-# 5) פתיחת ALL TCP (0-65535) ב-SG של ה-LB ושל האינסטנסים
-green "פותח ALL TCP ב-SG של ה-ALB ושל האינסטנסים (ייתכן שכבר פתוח; נתעלם משגיאת Duplicate)."
+# 5) פתיחת ALL TCP (0-65535) ב-SG של ה-ALB ושל האינסטנסים (דמו)
+green "פותח ALL TCP ב-SG של ה-ALB ושל האינסטנסים (דמו; Duplicate rules יתעלמו)."
 
-# --- LB SG ---
+# --- נסיון לזיהוי SG של ה-ALB ישירות ---
+LB_SGS=""
 LB_NAME=$(aws elasticbeanstalk describe-environment-resources --environment-name "$ENV" --region "$REGION" \
-          --query 'EnvironmentResources.LoadBalancers[0].Name' --output text)
-LB_SGS=$(aws elbv2 describe-load-balancers --names "$LB_NAME" --region "$REGION" \
-         --query 'LoadBalancers[0].SecurityGroups' --output text)
-for sg in $LB_SGS; do
-  aws ec2 authorize-security-group-ingress --region "$REGION" \
-    --group-id "$sg" --ip-permissions IpProtocol=tcp,FromPort=0,ToPort=65535,IpRanges='[{CidrIp=0.0.0.0/0,Description="open all tcp (demo)"}]' \
-    >/dev/null 2>&1 || true
-done
+          --query 'EnvironmentResources.LoadBalancers[0].Name' --output text 2>/dev/null || echo "")
+if [ -n "$LB_NAME" ] && [ "$LB_NAME" != "None" ]; then
+  LB_SGS=$(aws elbv2 describe-load-balancers --names "$LB_NAME" --region "$REGION" \
+           --query 'LoadBalancers[0].SecurityGroups' --output text 2>/dev/null || echo "")
+fi
 
-# --- Instance SG(s) ---
+# --- נפילה אחורית: חיפוש ALB לפי תג elasticbeanstalk:environment-name ---
+if [ -z "$LB_SGS" ] || [ "$LB_SGS" = "None" ]; then
+  ARNS=$(aws elbv2 describe-load-balancers --region "$REGION" --query 'LoadBalancers[].LoadBalancerArn' --output text 2>/dev/null || echo "")
+  for arn in $ARNS; do
+    NAME=$(aws elbv2 describe-tags --resource-arns "$arn" --region "$REGION" \
+           --query 'TagDescriptions[0].Tags[?Key==`elasticbeanstalk:environment-name`].Value | [0]' --output text 2>/dev/null || echo "")
+    if [ "$NAME" = "$ENV" ]; then
+      LB_SGS=$(aws elbv2 describe-load-balancers --load-balancer-arns "$arn" --region "$REGION" \
+               --query 'LoadBalancers[0].SecurityGroups' --output text 2>/dev/null || echo "")
+      break
+    fi
+  done
+fi
+
+if [ -n "$LB_SGS" ] && [ "$LB_SGS" != "None" ]; then
+  for sg in $LB_SGS; do
+    aws ec2 authorize-security-group-ingress --region "$REGION" --group-id "$sg" \
+      --ip-permissions IpProtocol=tcp,FromPort=0,ToPort=65535,IpRanges='[{CidrIp=0.0.0.0/0,Description="open all tcp (demo)"}]' \
+      >/dev/null 2>&1 || true
+  done
+else
+  note "לא נמצא SG של ALB (ייתכן שכבר פתוח ל-80/443). ממשיך..."
+fi
+
+# --- Instance SGs ---
 INST_IDS=$(aws elasticbeanstalk describe-environment-resources --environment-name "$ENV" --region "$REGION" \
-           --query 'EnvironmentResources.Instances[].Id' --output text)
+           --query 'EnvironmentResources.Instances[].Id' --output text 2>/dev/null || echo "")
 if [ -n "$INST_IDS" ]; then
   INST_SGS=$(aws ec2 describe-instances --region "$REGION" --instance-ids $INST_IDS \
-             --query 'Reservations[].Instances[].SecurityGroups[].GroupId' --output text | tr '\t' '\n' | sort -u)
+             --query 'Reservations[].Instances[].SecurityGroups[].GroupId' --output text 2>/dev/null | tr '\t' '\n' | sort -u)
   for sg in $INST_SGS; do
-    aws ec2 authorize-security-group-ingress --region "$REGION" \
-      --group-id "$sg" --ip-permissions IpProtocol=tcp,FromPort=0,ToPort=65535,IpRanges='[{CidrIp=0.0.0.0/0,Description="open all tcp (demo)"}]' \
+    aws ec2 authorize-security-group-ingress --region "$REGION" --group-id "$sg" \
+      --ip-permissions IpProtocol=tcp,FromPort=0,ToPort=65535,IpRanges='[{CidrIp=0.0.0.0/0,Description="open all tcp (demo)"}]' \
       >/dev/null 2>&1 || true
   done
 fi
