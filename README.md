@@ -1,27 +1,30 @@
 # Game Scoreboard – HA (2 instances) on Elastic Beanstalk / us-east-1
 
-- שני אינסטנסים מאחורי ALB באותה סביבה (EB) – **main** ו‑**main2_HA** (תיוג אוטומטי).
-- פתיחת **ALL TCP inbound** ל‑SG של ה‑ALB ושל האינסטנסים (דמו).
-- רץ מ‑Cloud9 (AWS Academy).
+- סביבה אחת ב-EB עם **2 אינסטנסים** מאחורי **ALB** (failover ע"י elastic).
+- תיוג אינסטנסים: **main**, **main2_HA**.
+- פתיחת **all tcp inbound**  ב-SG של ה-ALB ושל האינסטנסים.
+- קונטיינר **ubuntu 22.04** עם Flask+Gunicorn על פורט 5000.
 
-## הפעלה (Cloud9)
-```
+> ALL tcp פתוח ל-0.0.0.0/0 הוא לצורכי דמו בלבד. לפרודקשן להגביל ל-80/443/טווחים סגורים.
+
+## הפעלה (Cloud9 / AWS Academy)
+```bash
+# 1) משיכה וכניסה לתיקייה
 git clone https://github.com/roiko96/flsk.git
 cd flsk
 
-# קרדנצ'יאלס זמניים מה-Canvas
-export AWS_ACCESS_KEY_ID=""
-export AWS_SECRET_ACCESS_KEY=""
-export AWS_SESSION_TOKEN=""
+# 2) קרדנצ'יאלס זמניים מה-Canvas (IAM שהמורה פותח)
+export AWS_ACCESS_KEY_ID="PASTE"
+export AWS_SECRET_ACCESS_KEY="PASTE"
+export AWS_SESSION_TOKEN="PASTE"
 export AWS_DEFAULT_REGION="us-east-1"
-
 aws sts get-caller-identity
 
-# סידור תקיות (בטוח להרצה)
+# 3) יצירת תיקיות/העתקת קבצים למקומם (בטוח להרצה)
 mkdir -p templates
 [ -f index.html ] && mv -f index.html templates/index.html
 [ -f wsgi.py ] || echo 'from application import app as application' > wsgi.py
 
-# הרצה (ללא sudo)
+# 4) הרצה (ללא sudo)
 chmod +x deploy_eb.sh
 ./deploy_eb.sh
