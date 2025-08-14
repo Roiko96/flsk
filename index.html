@@ -17,9 +17,7 @@
     .card { border:1px solid #eee; padding:1rem; border-radius:.5rem; }
   </style>
   <script>
-    // מניעת קאש קדמי
     window.addEventListener('pageshow', function(e){ if(e.persisted) location.reload(); });
-    // פינג קטן כל 60ש' (לא חובה)
     setInterval(()=>{ fetch('/healthz').catch(()=>{}); }, 60000);
   </script>
 </head>
