@@ -1,24 +1,24 @@
+# Game Scoreboard – Flask + Docker (Ubuntu 22.04) on Elastic Beanstalk
 
-** myapp01_test | GameScoreBoard
+פרויקט הדגמה עם Flask, קונטיינר **Ubuntu 22.04**, פריסה ל‑**Elastic Beanstalk**:
+- סביבה ראשית: **us-east-1** (HA – 2 AZs מאחורי ALB)
+- סביבת DR: **us-west-1**
+- פקודה אחת שמקימה הכול ומדפיסה כתובות.
 
-```markdown
-# Game Scoreboard – Flask (by roiko)
+## הרצה מ-0 על Cloud9
 
-אפליקציית Flask קטנה שמנהלת ניקוד משחקים בזיכרון (ללא DB):
-הוספה/מחיקה/עריכה/מיון/ממוצע. דף HTML פשוט עם Bootstrap.
-
-## פריסה מהירה ב‑AWS (Elastic Beanstalk + HA)
-
-```
-sudo apt-get update -y
-pip3 install --user --upgrade awsebcli
-export PATH=$PATH:$HOME/.local/bin
-
-cd ~
-rm -rf flsk
-git clone https://github.com/Roiko96/flsk.git
+```bash
+# 1) קלאון של הפרויקט
+git clone https://github.com/roiko96/flsk
 cd flsk
 
-eb init -p docker "game-scoreboard" --region us-east-1
-eb create gs-ha --elb-type application --cname $(whoami)-gs --scale 2
-eb open
+# 2) ייצוא הקרדנצ'יאלס מה-Canvas (AWS Academy)
+export AWS_ACCESS_KEY_ID="PASTE"
+export AWS_SECRET_ACCESS_KEY="PASTE"
+export AWS_SESSION_TOKEN="PASTE"
+export AWS_DEFAULT_REGION="us-east-1"
+aws sts get-caller-identity
+
+# 3) פקודה אחת שמקימה הכול (מזרח+מערב) ומדפיסה כתובות
+chmod +x deploy_eb.sh
+./deploy_eb.sh
