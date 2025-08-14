@@ -1,24 +1,26 @@
-# Game scoreboard – Flask + Docker (Ubuntu 22.04) on Elastic Beanstalk
+# Game Scoreboard – HA (2 instances) on Elastic Beanstalk / us-east-1
 
-פרויקט דמו עם Flask בתוך קונטיינר **ubuntu:22.04**, פריסה ל‑**Elastic Beanstalk**:
-- ראשי: **us-east-1** (ALB + שתי מכונות)
-- DR: **us-west-1**
-- פקודה אחת שמקימה ומדפיסה כתובות.
+- שני אינסטנסים מאחורי ALB באותה סביבה (EB) – **main** ו‑**main2_HA** (תיוג אוטומטי).
+- פתיחת **ALL TCP inbound** ל‑SG של ה‑ALB ושל האינסטנסים (דמו).
+- רץ מ‑Cloud9 (AWS Academy).
 
-## הרצה מ‑0 על Cloud9
-
+## הפעלה (Cloud9)
 ```bash
-# 1) clone של הפרויקט
-git clone https://github.com/roiko96/flsk
+git clone https://github.com/roiko96/flsk.git
 cd flsk
 
-# 2) export לקרדנצ'יאלס מה‑Canvas (AWS Academy)
+# קרדנצ'יאלס זמניים מה-Canvas
 export AWS_ACCESS_KEY_ID="PASTE"
 export AWS_SECRET_ACCESS_KEY="PASTE"
 export AWS_SESSION_TOKEN="PASTE"
 export AWS_DEFAULT_REGION="us-east-1"
 aws sts get-caller-identity
 
-# 3) הקמה
+# סידור תקיות (בטוח להרצה)
+mkdir -p templates
+[ -f index.html ] && mv -f index.html templates/index.html
+[ -f wsgi.py ] || echo 'from application import app as application' > wsgi.py
+
+# הרצה (ללא sudo)
 chmod +x deploy_eb.sh
 ./deploy_eb.sh
