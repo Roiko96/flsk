@@ -59,4 +59,17 @@ echo 'platform must be: Docker running on 64bit Amazon Linux 2023'
 eb deploy main
 ```
 
+# destroy env 
+```
+# delete environment (keeps the application)
+eb terminate main --force --region us-east-1
+
+# optional: delete the EB application itself (after env is gone)
+aws elasticbeanstalk delete-application \
+  --application-name game-scoreboard-app \
+  --terminate-env-by-force \
+  --region us-east-1
+```
+*enjoy*
+
 
