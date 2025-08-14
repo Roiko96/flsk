@@ -10,10 +10,11 @@ git clone https://github.com/roiko96/flsk.git
 cd flsk
 
 # קרדנצ'יאלס זמניים מה-Canvas
-export AWS_ACCESS_KEY_ID="PASTE"
-export AWS_SECRET_ACCESS_KEY="PASTE"
-export AWS_SESSION_TOKEN="PASTE"
+export AWS_ACCESS_KEY_ID=""
+export AWS_SECRET_ACCESS_KEY=""
+export AWS_SESSION_TOKEN=""
 export AWS_DEFAULT_REGION="us-east-1"
+
 aws sts get-caller-identity
 
 # סידור תקיות (בטוח להרצה)
