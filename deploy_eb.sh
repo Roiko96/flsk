@@ -1,7 +1,7 @@
 
 ---
 
-## deploy_eb.sh
+# deploy_eb.sh 
 ```bash
 #!/usr/bin/env bash
 set -Eeuo pipefail
@@ -27,7 +27,7 @@ command -v eb >/dev/null || python3 -m pip install --user --upgrade awsebcli >/d
 command -v eb >/dev/null || die "EB CLI לא הותקן. נסה: python3 -m pip install --user awsebcli"
 green "EB CLI: $(eb --version)"
 
-# 2) סידור תקיות וקבצים (בטוח להרצה)
+# 2) סידור תיקיות וקבצים (בטוח להרצה)
 mkdir -p templates
 [ -f index.html ] && mv -f index.html templates/index.html
 [ -f wsgi.py ] || echo 'from application import app as application' > wsgi.py
@@ -35,11 +35,11 @@ grep -q '^Flask' requirements.txt 2>/dev/null || echo 'Flask>=2.3,<4' >> require
 grep -q '^gunicorn' requirements.txt 2>/dev/null || echo 'gunicorn>=21,<23' >> requirements.txt
 sed -i 's/\r$//' deploy_eb.sh 2>/dev/null || true  # מנקה CRLF אם צריך
 
-# 3) EB init + create (ALB + שני אינסטנסים)
+# 3) EB init + create (ALB + שני אינסטנסים + PORT=5000)
 rm -rf .elasticbeanstalk
 (printf "n\n") | eb init -p "$PLATFORM" "$APP" --region "$REGION"
 green "מקימים סביבה '$ENV' עם ALB ו-scale=2..."
-eb create "$ENV" --platform "$PLATFORM" --elb-type application --scale 2 --region "$REGION"
+eb create "$ENV" --platform "$PLATFORM" --elb-type application --scale 2 --envvars PORT=5000 --region "$REGION"
 
 # 4) המתנה ל-Green + שליפת CNAME
 green "ממתין ל-Green..."
@@ -58,7 +58,7 @@ green "URL: $URL"
 # 5) פתיחת ALL TCP (0-65535) ב-SG של ה-ALB ושל האינסטנסים (דמו)
 green "פותח ALL TCP ב-SG של ה-ALB ושל האינסטנסים (דמו; Duplicate rules יתעלמו)."
 
-# --- נסיון לזיהוי SG של ה-ALB ישירות ---
+# --- SG של ה-ALB ---
 LB_SGS=""
 LB_NAME=$(aws elasticbeanstalk describe-environment-resources --environment-name "$ENV" --region "$REGION" \
           --query 'EnvironmentResources.LoadBalancers[0].Name' --output text 2>/dev/null || echo "")
@@ -66,21 +66,6 @@ if [ -n "$LB_NAME" ] && [ "$LB_NAME" != "None" ]; then
   LB_SGS=$(aws elbv2 describe-load-balancers --names "$LB_NAME" --region "$REGION" \
            --query 'LoadBalancers[0].SecurityGroups' --output text 2>/dev/null || echo "")
 fi
-
-# --- נפילה אחורית: חיפוש ALB לפי תג elasticbeanstalk:environment-name ---
-if [ -z "$LB_SGS" ] || [ "$LB_SGS" = "None" ]; then
-  ARNS=$(aws elbv2 describe-load-balancers --region "$REGION" --query 'LoadBalancers[].LoadBalancerArn' --output text 2>/dev/null || echo "")
-  for arn in $ARNS; do
-    NAME=$(aws elbv2 describe-tags --resource-arns "$arn" --region "$REGION" \
-           --query 'TagDescriptions[0].Tags[?Key==`elasticbeanstalk:environment-name`].Value | [0]' --output text 2>/dev/null || echo "")
-    if [ "$NAME" = "$ENV" ]; then
-      LB_SGS=$(aws elbv2 describe-load-balancers --load-balancer-arns "$arn" --region "$REGION" \
-               --query 'LoadBalancers[0].SecurityGroups' --output text 2>/dev/null || echo "")
-      break
-    fi
-  done
-fi
-
 if [ -n "$LB_SGS" ] && [ "$LB_SGS" != "None" ]; then
   for sg in $LB_SGS; do
     aws ec2 authorize-security-group-ingress --region "$REGION" --group-id "$sg" \
@@ -88,10 +73,10 @@ if [ -n "$LB_SGS" ] && [ "$LB_SGS" != "None" ]; then
       >/dev/null 2>&1 || true
   done
 else
-  note "לא נמצא SG של ALB (ייתכן שכבר פתוח ל-80/443). ממשיך..."
+  note "לא נמצא SG של ALB (יתכן שכבר פתוח ל-80/443). ממשיך..."
 fi
 
-# --- Instance SGs ---
+# --- SG של האינסטנסים ---
 INST_IDS=$(aws elasticbeanstalk describe-environment-resources --environment-name "$ENV" --region "$REGION" \
            --query 'EnvironmentResources.Instances[].Id' --output text 2>/dev/null || echo "")
 if [ -n "$INST_IDS" ]; then
