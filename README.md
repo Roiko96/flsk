@@ -52,3 +52,11 @@ aws sts get-caller-identity || echo "re-export credentials from canvas"
 
 # platform not found?
 echo 'platform must be: Docker running on 64bit Amazon Linux 2023'
+```
+# redeploy if neccesery: 
+```
+(printf "n\n") | eb init -p "Docker running on 64bit Amazon Linux 2023" game-scoreboard-app --region us-east-1
+eb deploy main
+```
+
+
