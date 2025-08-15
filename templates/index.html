@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>game scoreboard</title>
+  <style>
+    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; margin: 24px; }
+    header { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 12px; }
+    h1 { margin: 0; font-size: 1.5rem; text-transform: none; }
+    small { color: #555; }
+    .toolbar a { margin-right: 8px; text-decoration: none; border:1px solid #ccc; padding:2px 8px; border-radius:999px; font-size:.85rem; }
+    table { border-collapse: collapse; width: 100%; margin-top: 12px; }
+    th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+    th { background: #f5f5f5; }
+    form { margin: 16px 0; }
+    fieldset { border: 1px solid #ddd; padding: 12px; }
+    legend { padding: 0 6px; color: #444; }
+    input[type="text"], input[type="number"] { padding: 6px; width: 100%; box-sizing: border-box; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 16px; }
+    .actions { margin-top: 10px; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>game scoreboard</h1>
+    <small>host: {{ host }}</small>
+  </header>
+
+  <div class="toolbar">
+    <a href="{{ url_for('sort_view', key='name') }}">sort by name</a>
+    <a href="{{ url_for('sort_view', key='game') }}">sort by game</a>
+    <a href="{{ url_for('sort_view', key='score') }}">sort by score (desc)</a>
+    <a href="{{ url_for('index', average=1) }}">average</a>
+    <a href="{{ url_for('index') }}">refresh</a>
+  </div>
+
+  {% if average is defined %}
+    <p><strong>average score:</strong> {{ average }}</p>
+  {% endif %}
+
+  <table>
+    <thead>
+      <tr><th>name</th><th>game</th><th>score</th></tr>
+    </thead>
+    <tbody>
+      {% if scores %}
+        {% for row in scores %}
+          <tr>
+            <td>{{ row.name if row.name is defined else row['name'] }}</td>
+            <td>{{ row.game if row.game is defined else row['game'] }}</td>
+            <td>{{ row.score if row.score is defined else row['score'] }}</td>
+          </tr>
+        {% endfor %}
+      {% else %}
+        <tr><td colspan="3">no scores yet.</td></tr>
+      {% endif %}
+    </tbody>
+  </table>
+
+  <div class="grid">
+    <form action="/add" method="post">
+      <fieldset>
+        <legend>add score</legend>
+        <label>name</label><input name="name" type="text" required />
+        <label>game</label><input name="game" type="text" required />
+        <label>score</label><input name="score" type="number" step="any" required />
+        <div class="actions"><button type="submit">add</button></div>
+      </fieldset>
+    </form>
+
+    <form action="/delete" method="post">
+      <fieldset>
+        <legend>delete by name (optional: by game)</legend>
+        <label>name</label><input name="name" type="text" required />
+        <label>game (optional)</label><input name="game" type="text" />
+        <div class="actions"><button type="submit">delete</button></div>
+      </fieldset>
+    </form>
+
+    <form action="/edit" method="post">
+      <fieldset>
+        <legend>edit a score</legend>
+        <label>current name</label><input name="current_name" type="text" required />
+        <label>current game</label><input name="current_game" type="text" required />
+        <hr/>
+        <label>new name</label><input name="new_name" type="text" placeholder="(leave blank to keep)" />
+        <label>new game</label><input name="new_game" type="text" placeholder="(leave blank to keep)" />
+        <label>new score</label><input name="new_score" type="number" step="any" placeholder="(leave blank to keep)" />
+        <div class="actions"><button type="submit">update</button></div>
+      </fieldset>
+    </form>
+  </div>
+
+  <p style="color:#666;font-size:.9rem">
+    demo only: data is in-memory per worker/instance.
+  </p>
+</body>
+</html>
