@@ -1,15 +1,12 @@
 .git
 .gitignore
 __pycache__/
-*.pyc
-*.pyo
-*.pyd
+*.py[cod]
 *.log
-.DS_Store
 .env
 .venv/
-env/
 venv/
+.DS_Store
 .idea/
 .vscode/
 cfn/
