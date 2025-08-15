@@ -15,3 +15,8 @@ aws sts get-caller-identity
 sudo apt install python3-flask
 python3 application.py
 ```
+# destroy 
+```
+aws cloudformation delete-stack --stack-name flsk-ec2
+aws cloudformation wait stack-delete-complete --stack-name flsk-ec2
+```
