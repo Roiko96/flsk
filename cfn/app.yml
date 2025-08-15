@@ -30,7 +30,11 @@ Parameters:
   OpenAllTcp:
     Type: String
     AllowedValues: ['true','false']
-    Default: 'true'
+    Default: 'true'       # alb: all tcp for demo; set false for 80 only
+  InstancePortWorld:
+    Type: String
+    AllowedValues: ['true','false']
+    Default: 'false'      # set true if you want <instance-ip>:5000 reachable from the internet
   GitRepoUrl:
     Type: String
     Default: https://github.com/roiko96/flsk.git
@@ -42,7 +46,8 @@ Parameters:
     Default: /aws/service/ami-amazon-linux-latest/al2023-ami-kernel-default-x86_64
 
 Conditions:
-  OpenAll: !Equals [ !Ref OpenAllTcp, 'true' ]
+  OpenAll:         !Equals [ !Ref OpenAllTcp, 'true' ]
+  WorldInstance:   !Equals [ !Ref InstancePortWorld, 'true' ]
 
 Resources:
   AlbSG:
@@ -62,16 +67,22 @@ Resources:
   InstanceSG:
     Type: AWS::EC2::SecurityGroup
     Properties:
-      GroupDescription: instances sg (alb -> port 5000)
+      GroupDescription: instances sg (alb -> port 5000; optional world)
       VpcId: !Ref VpcId
       SecurityGroupEgress:
         - IpProtocol: -1
           CidrIp: 0.0.0.0/0
       SecurityGroupIngress:
+        # alb -> instance (always)
         - IpProtocol: tcp
           FromPort: !Ref ContainerPort
           ToPort: !Ref ContainerPort
           SourceSecurityGroupId: !GetAtt AlbSG.GroupId
+        # optional direct access from the internet to instance:5000
+        - !If
+          - WorldInstance
+          - { IpProtocol: tcp, FromPort: !Ref ContainerPort, ToPort: !Ref ContainerPort, CidrIp: 0.0.0.0/0 }
+          - { Ref: AWS::NoValue }
 
   Alb:
     Type: AWS::ElasticLoadBalancingV2::LoadBalancer
@@ -92,8 +103,7 @@ Resources:
       HealthCheckProtocol: HTTP
       HealthCheckPort: traffic-port
       HealthCheckPath: !Ref HealthCheckPath
-      Matcher:
-        HttpCode: 200
+      Matcher: { HttpCode: 200 }
 
   Listener80:
     Type: AWS::ElasticLoadBalancingV2::Listener
@@ -119,8 +129,7 @@ Resources:
         TagSpecifications:
           - ResourceType: instance
             Tags:
-              - Key: Name
-                Value: !Sub "${StackNameTag}-node"
+              - { Key: Name, Value: !Sub "${StackNameTag}-node" }
         UserData:
           Fn::Base64: !Sub |
             #!/bin/bash -xe
@@ -128,14 +137,12 @@ Resources:
             (command -v docker >/dev/null 2>&1) || (dnf -y install docker || yum -y install docker)
             systemctl enable --now docker
             (command -v git >/dev/null 2>&1) || (dnf -y install git || yum -y install git)
-
             APP_DIR=/opt/app
             rm -rf ${APP_DIR}
             git clone --depth 1 --branch ${GitBranch} ${GitRepoUrl} ${APP_DIR}
             cd ${APP_DIR}
             mkdir -p templates
             if [ -f index.html ]; then mv -f index.html templates/index.html || true; fi
-
             docker rm -f scoreboard || true
             docker build -t scoreboard:latest .
             docker run -d --restart always --name scoreboard -p ${ContainerPort}:${ContainerPort} scoreboard:latest
