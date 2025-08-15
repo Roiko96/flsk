@@ -1,75 +1,43 @@
-# Game Scoreboard – HA (2 instances) on Elastic Beanstalk / us-east-1
+# game scoreboard – docker on ec2/alb via cloudformation
 
-- סביבה אחת ב-EB עם **2 אינסטנסים** מאחורי **ALB** (failover ע"י elastic).
-- תיוג אינסטנסים: **main**, **main2_HA**.
-- פתיחת **all tcp inbound**  ב-SG של ה-ALB ושל האינסטנסים.
-- קונטיינר **ubuntu 22.04** עם Flask+Gunicorn על פורט 5000.
+- alb + autoscaling group (min=2, desired=2, max=2). if one ec2 dies, asg launches a new one.
+- english index. container on port 5000. health: /healthz.
+- no beanstalk. cloudformation only. run from cloud9.
 
-> alll tcp פתוח ל-0.0.0.0/0 הוא לצורכי דמו בלבד. לפרודקשן להגביל ל-80/443/טווחים סגורים.
-
-## הפעלה (Cloud9 / AWS Academy)
+## run (cloud9)
 ```bash
-# 1) משיכה וכניסה לתיקייה
+# 0) clone + cd
 git clone https://github.com/roiko96/flsk.git
 cd flsk
 
-# 2) קרדנצ'יאלס זמניים מה-Canvas (IAM שהמורה פותח)
-export AWS_ACCESS_KEY_ID="PASTE"
-export AWS_SECRET_ACCESS_KEY="PASTE"
-export AWS_SESSION_TOKEN="PASTE"
-export AWS_DEFAULT_REGION="us-east-1"
+# 1) make sure template exists
+ls cfn/app.yml
+
+# 2) region + identity
+export AWS_DEFAULT_REGION=us-east-1
 aws sts get-caller-identity
 
-# 3) יצירת תיקיות/העתקת קבצים למקומם (בטוח להרצה)
-mkdir -p templates
-[ -f index.html ] && mv -f index.html templates/index.html
-[ -f wsgi.py ] || echo 'from application import app as application' > wsgi.py
+# 3) default vpc + public subnets (comma-separated)
+VPC_ID=$(aws ec2 describe-vpcs --filters Name=isDefault,Values=true --query 'Vpcs[0].VpcId' --output text)
+SUBNETS=$(aws ec2 describe-subnets --filters Name=vpc-id,Values=$VPC_ID Name=default-for-az,Values=true --query 'Subnets[].SubnetId' --output text | tr '\t' ',')
+echo "$VPC_ID"
+echo "$SUBNETS"
 
-# 4) הרצה (ללא sudo)
-chmod +x deploy_eb.sh
-./deploy_eb.sh
-```
-# troubleshoot : 
+# 4) deploy cloudformation (alb + asg + docker build on each node)
+aws cloudformation deploy \
+  --stack-name flsk-ec2 \
+  --template-file cfn/app.yml \
+  --parameter-overrides \
+    VpcId="$VPC_ID" \
+    PublicSubnets="$SUBNETS" \
+    InstanceType=t3.micro \
+    MinSize=2 DesiredCapacity=2 MaxSize=2 \
+    OpenAllTcp=true \
+    GitRepoUrl="https://github.com/roiko96/flsk.git" \
+    GitBranch="main"
 
-```
-
-# eb cli not found 
-python3 -m pip install --user --upgrade awsebcli && export PATH="$HOME/.local/bin:$PATH" && eb --version
-
-# follow events + grab logs (errors only)
-eb events --follow --region us-east-1 --environment main
-eb logs --all   --region us-east-1 --environment main | egrep -i 'error|traceback|gunicorn' | tail -n 120
-
-# check cname + health
-CNAME=$(aws elasticbeanstalk describe-environments --region us-east-1 \
-  --application-name game-scoreboard-app --environment-names main \
-  --query 'Environments[0].CNAME' --output text)
-
-curl -s -o /dev/null -w "%{http_code}\n" "http://${CNAME}/healthz"   # expect: 200
-
-# invalid/expired token?
-aws sts get-caller-identity || echo "re-export credentials from canvas"
-
-# platform not found?
-echo 'platform must be: Docker running on 64bit Amazon Linux 2023'
-```
-# redeploy if neccesery: 
-```
-(printf "n\n") | eb init -p "Docker running on 64bit Amazon Linux 2023" game-scoreboard-app --region us-east-1
-eb deploy main
-```
-
-# destroy env 
-```
-# delete environment (keeps the application)
-eb terminate main --force --region us-east-1
-
-# optional: delete the EB application itself (after env is gone)
-aws elasticbeanstalk delete-application \
-  --application-name game-scoreboard-app \
-  --terminate-env-by-force \
-  --region us-east-1
-```
-*enjoy*
-
-
+# 5) get url + health (expect 200)
+URL=$(aws cloudformation describe-stacks --stack-name flsk-ec2 \
+  --query "Stacks[0].Outputs[?OutputKey=='LoadBalancerDNS'].OutputValue" --output text)
+echo "url: $URL"
+curl -s -o /dev/null -w "%{http_code}\n" "$URL/healthz"
