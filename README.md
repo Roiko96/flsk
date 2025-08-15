@@ -21,4 +21,4 @@ python3 application.py
 aws cloudformation delete-stack --stack-name flsk-ec2
 aws cloudformation wait stack-delete-complete --stack-name flsk-ec2
 ```
-![Uploading image.png…]()
+<img width="1901" height="889" alt="image" src="https://github.com/user-attachments/assets/fce14a33-4e87-441a-9d32-1604b0d3cd35" />
