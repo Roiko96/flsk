@@ -1,44 +1,50 @@
-scores = []
+# functions.py
 
-def _to_float(x):
-    try: return float(x)
-    except Exception: return 0.0
+from typing import List, Dict, Optional
 
-def add_score_data(name, game, score):
-    scores.append({"name": name, "game": game, "score": _to_float(score)})
+def _coerce_score(v) -> float:
+    try:
+        return float(str(v).replace(",", "."))
+    except Exception:
+        return 0.0
 
-def delete_score_by_name(name, game=None):
-    global scores
-    name = name.strip()
-    if game:
-        g = game.strip()
-        scores = [s for s in scores if not (s.get("name")==name and s.get("game")==g)]
+def sort_scores_by_key(data: List[Dict], key: str, reverse: bool = False) -> None:
+    if key not in {"name", "game", "score"}:
+        return
+    if key == "score":
+        data.sort(key=lambda x: _coerce_score(x.get("score", 0.0)), reverse=reverse)
     else:
-        scores = [s for s in scores if s.get("name") != name]
+        data.sort(key=lambda x: (x.get(key) or ""), reverse=reverse)
 
-def _key_fn(key):
-    return (lambda s: _to_float(s.get("score", 0))) if key=="score" else (lambda s: str(s.get(key,"")))
+def add_score(data: List[Dict], name: str, game: str, score) -> None:
+    data.append({"name": name.strip(), "game": game.strip(), "score": _coerce_score(score)})
 
-def sort_scores_by_key(key, reverse=False):
-    if key in {"name","game","score"}:
-        scores.sort(key=_key_fn(key), reverse=reverse)
+def delete_score_by_name(data: List[Dict], name: str, game: Optional[str] = None) -> int:
+    name = name.strip()
+    game_key = game.strip() if isinstance(game, str) else None
+    deleted = 0
+    for i in range(len(data) - 1, -1, -1):
+        row = data[i]
+        if row.get("name") == name and (game_key is None or row.get("game") == game_key):
+            data.pop(i)
+            deleted += 1
+    return deleted
 
-def get_sorted_scores(key, reverse=False):
-    if key not in {"name","game","score"}:
-        return get_scores()
-    return sorted(get_scores(), key=_key_fn(key), reverse=reverse)
+def edit_score(data: List[Dict], current_name: str, current_game: str,
+               new_name: Optional[str] = None, new_game: Optional[str] = None,
+               new_score: Optional[str] = None) -> bool:
+    idx = None
+    for i, row in enumerate(data):
+        if row.get("name") == current_name and row.get("game") == current_game:
+            idx = i
+            break
+    if idx is None: return False
+    if new_name: data[idx]["name"] = new_name.strip()
+    if new_game: data[idx]["game"] = new_game.strip()
+    if new_score and str(new_score).strip() != "": data[idx]["score"] = _coerce_score(new_score)
+    return True
 
-def calculate_average():
-    return round(sum(_to_float(s.get("score",0)) for s in scores)/len(scores), 2) if scores else 0
-
-def edit_score_data(cur_name, cur_game, new_name=None, new_game=None, new_score=None):
-    for s in scores:
-        if s.get("name")==cur_name and s.get("game")==cur_game:
-            if new_name: s["name"]=new_name
-            if new_game: s["game"]=new_game
-            if new_score is not None: s["score"]=_to_float(new_score)
-            return True
-    return False
-
-def get_scores():
-    return list(scores)
+def calc_average(data: List[Dict]) -> float:
+    if not data: return 0.0
+    total = sum(_coerce_score(x.get("score", 0.0)) for x in data)
+    return round(total / len(data), 2)
