@@ -1,5 +1,5 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: flsk – flask in docker on ec2 behind an alb (asg 2 instances)
+Description: flsk – flask in docker on ec2 behind an alb (asg 2 instances + world:5000)
 
 Parameters:
   StackNameTag:
@@ -30,11 +30,11 @@ Parameters:
   OpenAllTcp:
     Type: String
     AllowedValues: ['true','false']
-    Default: 'true'       # alb: all tcp for demo; set false for 80 only
-  InstancePortWorld:
+    Default: 'true'        # alb: all tcp for demo (set 'false' for 80/443 only)
+  EnableIpv6:
     Type: String
     AllowedValues: ['true','false']
-    Default: 'false'      # set true if you want <instance-ip>:5000 reachable from the internet
+    Default: 'false'       # set 'true' ONLY if your VPC/subnets have IPv6 block
   GitRepoUrl:
     Type: String
     Default: https://github.com/roiko96/flsk.git
@@ -46,8 +46,8 @@ Parameters:
     Default: /aws/service/ami-amazon-linux-latest/al2023-ami-kernel-default-x86_64
 
 Conditions:
-  OpenAll:         !Equals [ !Ref OpenAllTcp, 'true' ]
-  WorldInstance:   !Equals [ !Ref InstancePortWorld, 'true' ]
+  AllTcp:  !Equals [ !Ref OpenAllTcp, 'true' ]
+  UseIpv6: !Equals [ !Ref EnableIpv6, 'true' ]
 
 Resources:
   AlbSG:
@@ -58,37 +58,59 @@ Resources:
       SecurityGroupEgress:
         - IpProtocol: -1
           CidrIp: 0.0.0.0/0
+        - !If
+          - UseIpv6
+          - { IpProtocol: -1, CidrIpv6: ::/0 }
+          - { Ref: AWS::NoValue }
       SecurityGroupIngress:
         - !If
-          - OpenAll
+          - AllTcp
           - { IpProtocol: -1, CidrIp: 0.0.0.0/0 }
           - { IpProtocol: tcp, FromPort: 80, ToPort: 80, CidrIp: 0.0.0.0/0 }
+        - !If
+          - AllTcp
+          - { Ref: AWS::NoValue }
+          - { IpProtocol: tcp, FromPort: 443, ToPort: 443, CidrIp: 0.0.0.0/0 }
+        - !If
+          - UseIpv6
+          - { IpProtocol: tcp, FromPort: 80, ToPort: 80, CidrIpv6: ::/0 }
+          - { Ref: AWS::NoValue }
 
   InstanceSG:
     Type: AWS::EC2::SecurityGroup
     Properties:
-      GroupDescription: instances sg (alb -> port 5000; optional world)
+      GroupDescription: instances sg (alb + world:5000)
       VpcId: !Ref VpcId
       SecurityGroupEgress:
         - IpProtocol: -1
           CidrIp: 0.0.0.0/0
+        - !If
+          - UseIpv6
+          - { IpProtocol: -1, CidrIpv6: ::/0 }
+          - { Ref: AWS::NoValue }
       SecurityGroupIngress:
-        # alb -> instance (always)
+        # world -> instance:5000 (IPv4)
+        - IpProtocol: tcp
+          FromPort: !Ref ContainerPort
+          ToPort: !Ref ContainerPort
+          CidrIp: 0.0.0.0/0
+        # world -> instance:5000 (IPv6, optional)
+        - !If
+          - UseIpv6
+          - { IpProtocol: tcp, FromPort: !Ref ContainerPort, ToPort: !Ref ContainerPort, CidrIpv6: ::/0 }
+          - { Ref: AWS::NoValue }
+        # alb -> instance (redundant but fine)
         - IpProtocol: tcp
           FromPort: !Ref ContainerPort
           ToPort: !Ref ContainerPort
           SourceSecurityGroupId: !GetAtt AlbSG.GroupId
-        # optional direct access from the internet to instance:5000
-        - !If
-          - WorldInstance
-          - { IpProtocol: tcp, FromPort: !Ref ContainerPort, ToPort: !Ref ContainerPort, CidrIp: 0.0.0.0/0 }
-          - { Ref: AWS::NoValue }
 
   Alb:
     Type: AWS::ElasticLoadBalancingV2::LoadBalancer
     Properties:
       Name: !Sub "${StackNameTag}-alb"
       Scheme: internet-facing
+      IpAddressType: !If [ UseIpv6, dualstack, ipv4 ]
       Subnets: !Ref PublicSubnets
       SecurityGroups: [ !Ref AlbSG ]
 
@@ -126,6 +148,7 @@ Resources:
           - DeviceIndex: 0
             AssociatePublicIpAddress: true
             Groups: [ !Ref InstanceSG ]
+            Ipv6AddressCount: !If [ UseIpv6, 1, !Ref "AWS::NoValue" ]
         TagSpecifications:
           - ResourceType: instance
             Tags:
@@ -137,12 +160,14 @@ Resources:
             (command -v docker >/dev/null 2>&1) || (dnf -y install docker || yum -y install docker)
             systemctl enable --now docker
             (command -v git >/dev/null 2>&1) || (dnf -y install git || yum -y install git)
+
             APP_DIR=/opt/app
-            rm -rf ${APP_DIR}
-            git clone --depth 1 --branch ${GitBranch} ${GitRepoUrl} ${APP_DIR}
-            cd ${APP_DIR}
+            rm -rf $APP_DIR
+            git clone --depth 1 --branch ${GitBranch} ${GitRepoUrl} $APP_DIR
+            cd $APP_DIR
             mkdir -p templates
             if [ -f index.html ]; then mv -f index.html templates/index.html || true; fi
+
             docker rm -f scoreboard || true
             docker build -t scoreboard:latest .
             docker run -d --restart always --name scoreboard -p ${ContainerPort}:${ContainerPort} scoreboard:latest
@@ -154,8 +179,8 @@ Resources:
       MinSize: !Ref MinSize
       DesiredCapacity: !Ref DesiredCapacity
       MaxSize: !Ref MaxSize
-      HealthCheckType: ELB
-      HealthCheckGracePeriod: 180
+      HealthCheckType: ELB              # replace on ELB/EC2 unhealthy (incl. Stop/Terminate)
+      HealthCheckGracePeriod: 180       # מספיק זמן לבניית הדוקר
       TargetGroupARNs: [ !Ref TargetGroup ]
       LaunchTemplate:
         LaunchTemplateId: !Ref LaunchTemplate
