@@ -1,0 +1,164 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: flsk – flask in docker on ec2 behind an alb (asg 2 instances)
+
+Parameters:
+  StackNameTag:
+    Type: String
+    Default: flsk-ec2
+  VpcId:
+    Type: AWS::EC2::VPC::Id
+  PublicSubnets:
+    Type: List<AWS::EC2::Subnet::Id>
+  InstanceType:
+    Type: String
+    Default: t3.micro
+  MinSize:
+    Type: Number
+    Default: 2
+  DesiredCapacity:
+    Type: Number
+    Default: 2
+  MaxSize:
+    Type: Number
+    Default: 2
+  ContainerPort:
+    Type: Number
+    Default: 5000
+  HealthCheckPath:
+    Type: String
+    Default: /healthz
+  OpenAllTcp:
+    Type: String
+    AllowedValues: ['true','false']
+    Default: 'true'
+  GitRepoUrl:
+    Type: String
+    Default: https://github.com/roiko96/flsk.git
+  GitBranch:
+    Type: String
+    Default: main
+  AmiSSMParam:
+    Type: 'AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>'
+    Default: /aws/service/ami-amazon-linux-latest/al2023-ami-kernel-default-x86_64
+
+Conditions:
+  OpenAll: !Equals [ !Ref OpenAllTcp, 'true' ]
+
+Resources:
+  AlbSG:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: alb sg (demo)
+      VpcId: !Ref VpcId
+      SecurityGroupEgress:
+        - IpProtocol: -1
+          CidrIp: 0.0.0.0/0
+      SecurityGroupIngress:
+        - !If
+          - OpenAll
+          - { IpProtocol: -1, CidrIp: 0.0.0.0/0 }
+          - { IpProtocol: tcp, FromPort: 80, ToPort: 80, CidrIp: 0.0.0.0/0 }
+
+  InstanceSG:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: instances sg (alb -> port 5000)
+      VpcId: !Ref VpcId
+      SecurityGroupEgress:
+        - IpProtocol: -1
+          CidrIp: 0.0.0.0/0
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: !Ref ContainerPort
+          ToPort: !Ref ContainerPort
+          SourceSecurityGroupId: !GetAtt AlbSG.GroupId
+
+  Alb:
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    Properties:
+      Name: !Sub "${StackNameTag}-alb"
+      Scheme: internet-facing
+      Subnets: !Ref PublicSubnets
+      SecurityGroups: [ !Ref AlbSG ]
+
+  TargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      Name: !Sub "${StackNameTag}-tg"
+      VpcId: !Ref VpcId
+      Protocol: HTTP
+      Port: !Ref ContainerPort
+      TargetType: instance
+      HealthCheckProtocol: HTTP
+      HealthCheckPort: traffic-port
+      HealthCheckPath: !Ref HealthCheckPath
+      Matcher:
+        HttpCode: 200
+
+  Listener80:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      LoadBalancerArn: !Ref Alb
+      Port: 80
+      Protocol: HTTP
+      DefaultActions:
+        - Type: forward
+          TargetGroupArn: !Ref TargetGroup
+
+  LaunchTemplate:
+    Type: AWS::EC2::LaunchTemplate
+    Properties:
+      LaunchTemplateName: !Sub "${StackNameTag}-lt"
+      LaunchTemplateData:
+        ImageId: !Ref AmiSSMParam
+        InstanceType: !Ref InstanceType
+        NetworkInterfaces:
+          - DeviceIndex: 0
+            AssociatePublicIpAddress: true
+            Groups: [ !Ref InstanceSG ]
+        TagSpecifications:
+          - ResourceType: instance
+            Tags:
+              - Key: Name
+                Value: !Sub "${StackNameTag}-node"
+        UserData:
+          Fn::Base64: !Sub |
+            #!/bin/bash -xe
+            dnf -y update || true
+            (command -v docker >/dev/null 2>&1) || (dnf -y install docker || yum -y install docker)
+            systemctl enable --now docker
+            (command -v git >/dev/null 2>&1) || (dnf -y install git || yum -y install git)
+
+            APP_DIR=/opt/app
+            rm -rf ${APP_DIR}
+            git clone --depth 1 --branch ${GitBranch} ${GitRepoUrl} ${APP_DIR}
+            cd ${APP_DIR}
+            mkdir -p templates
+            if [ -f index.html ]; then mv -f index.html templates/index.html || true; fi
+
+            docker rm -f scoreboard || true
+            docker build -t scoreboard:latest .
+            docker run -d --restart always --name scoreboard -p ${ContainerPort}:${ContainerPort} scoreboard:latest
+
+  ASG:
+    Type: AWS::AutoScaling::AutoScalingGroup
+    Properties:
+      VPCZoneIdentifier: !Ref PublicSubnets
+      MinSize: !Ref MinSize
+      DesiredCapacity: !Ref DesiredCapacity
+      MaxSize: !Ref MaxSize
+      HealthCheckType: ELB
+      HealthCheckGracePeriod: 180
+      TargetGroupARNs: [ !Ref TargetGroup ]
+      LaunchTemplate:
+        LaunchTemplateId: !Ref LaunchTemplate
+        Version: !GetAtt LaunchTemplate.LatestVersionNumber
+      Tags:
+        - Key: Name
+          Value: !Ref StackNameTag
+          PropagateAtLaunch: true
+
+Outputs:
+  LoadBalancerDNS:
+    Description: alb url
+    Value: !Sub "http://${Alb.DNSName}"
