@@ -2,13 +2,13 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>game scoreboard</title>
   <style>
     body { font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; margin: 24px; }
     header { display:flex; justify-content:space-between; align-items:baseline; }
     h1 { margin:0; font-size:1.4rem; }
-    .toolbar a, .toolbar button { margin-right:8px; display:inline-block; padding:4px 10px; border:1px solid #ccc; border-radius:999px; text-decoration:none; }
+    .toolbar a { margin-right:8px; text-decoration:none; border:1px solid #ccc; padding:4px 10px; border-radius:999px; }
     table { border-collapse:collapse; width:100%; margin-top:12px; }
     th, td { border:1px solid #ddd; padding:8px; text-align:left; }
     th { background:#f5f5f5; }
@@ -23,18 +23,18 @@
 <body>
   <header>
     <h1>game scoreboard</h1>
-    <small>host: {{ hostname }}</small>
+    <small>host: {{ host }}</small>
   </header>
 
   <div class="toolbar">
     <a href="{{ url_for('sort_view', key='name') }}">sort by name</a>
     <a href="{{ url_for('sort_view', key='game') }}">sort by game</a>
     <a href="{{ url_for('sort_view', key='score') }}">sort by score (desc)</a>
-    <a href="{{ url_for('index', average=1, t=now_ms) }}">average</a>
-    <a href="{{ url_for('index', t=now_ms) }}">refresh</a>
+    <a href="{{ url_for('index', average=1) }}">average</a>
+    <a href="{{ url_for('index') }}">refresh</a>
   </div>
 
-  {% if average is not none %}
+  {% if average is defined %}
     <p><strong>average score:</strong> {{ average }}</p>
   {% endif %}
 
@@ -54,9 +54,8 @@
   </table>
 
   <div class="grid">
-    <form action="{{ url_for('add_view') }}" method="post">
-      <fieldset>
-        <legend>add score</legend>
+    <form action="/add" method="post">
+      <fieldset><legend>add score</legend>
         <label>name</label><input name="name" type="text" required />
         <label>game</label><input name="game" type="text" required />
         <label>score</label><input name="score" type="number" step="any" required />
@@ -64,18 +63,16 @@
       </fieldset>
     </form>
 
-    <form action="{{ url_for('delete_view') }}" method="post">
-      <fieldset>
-        <legend>delete by name (optional: by game)</legend>
+    <form action="/delete" method="post">
+      <fieldset><legend>delete by name (optional: by game)</legend>
         <label>name</label><input name="name" type="text" required />
-        <label>game</label><input name="game" type="text" placeholder="(optional)" />
+        <label>game (optional)</label><input name="game" type="text" />
         <div><button type="submit">delete</button></div>
       </fieldset>
     </form>
 
-    <form action="{{ url_for('edit_view') }}" method="post">
-      <fieldset>
-        <legend>edit a score</legend>
+    <form action="/edit" method="post">
+      <fieldset><legend>edit a score</legend>
         <label>current name</label><input name="current_name" type="text" required />
         <label>current game</label><input name="current_game" type="text" required />
         <hr/>
@@ -87,6 +84,6 @@
     </form>
   </div>
 
-  <p class="muted">demo app without a database. in scaling, data is per process/instance.</p>
+  <p class="muted">demo only: data is in-memory per worker/instance.</p>
 </body>
 </html>
