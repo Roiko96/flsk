@@ -3,87 +3,175 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>game scoreboard</title>
+  <title>game scoreboard by roiko</title>
+  <!-- inline favicon (no more 404) -->
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='64' height='64'%3E%3Crect rx='12' ry='12' width='64' height='64' fill='%2300e0ff'/%3E%3Ccircle cx='22' cy='28' r='6' fill='%23001b2e'/%3E%3Ccircle cx='42' cy='28' r='6' fill='%23001b2e'/%3E%3Crect x='28' y='40' width='8' height='4' fill='%23001b2e' rx='2'/%3E%3C/svg%3E" />
   <style>
-    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; margin: 24px; }
-    header { display:flex; justify-content:space-between; align-items:baseline; }
-    h1 { margin:0; font-size:1.4rem; }
-    .toolbar a { margin-right:8px; text-decoration:none; border:1px solid #ccc; padding:4px 10px; border-radius:999px; }
-    table { border-collapse:collapse; width:100%; margin-top:12px; }
-    th, td { border:1px solid #ddd; padding:8px; text-align:left; }
-    th { background:#f5f5f5; }
-    form { margin:16px 0; }
-    fieldset { border:1px solid #ddd; padding:12px; }
-    legend { padding:0 6px; color:#444; }
-    input[type="text"], input[type="number"] { padding:6px; width:100%; box-sizing:border-box; }
-    .grid { display:grid; grid-template-columns:repeat(auto-fit, minmax(260px, 1fr)); gap:16px; }
-    .muted { color:#666; font-size:0.9rem; }
+    :root{
+      --bg:#0b1020; --bg2:#101935;
+      --panel:#0f1c3d; --panel-2:#0c1730;
+      --text:#e6f0ff; --muted:#9fb3c8;
+      --accent:#00e0ff; --accent2:#ff3cac; --accent3:#7cff6b;
+      --line:#1e2a56;
+      --shadow: 0 12px 30px rgba(0,0,0,.35);
+    }
+    *{box-sizing:border-box}
+    html,body{height:100%}
+    body{
+      margin:0; color:var(--text);
+      background: linear-gradient(135deg,#0b1020 0%, #141a3a 50%, #0b1020 100%);
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, "Helvetica Neue", Arial, sans-serif;
+    }
+    a{color:var(--accent); text-decoration:none}
+    .layout{
+      display:grid; grid-template-columns: 260px 1fr; min-height:100vh;
+    }
+    /* sidebar */
+    .sidebar{
+      background: linear-gradient(180deg, var(--panel) 0%, var(--panel-2) 100%);
+      border-right:1px solid var(--line);
+      padding:22px 18px; position:sticky; top:0; height:100vh;
+    }
+    .brand{display:flex; align-items:center; gap:10px; margin-bottom:18px}
+    .logo{
+      width:34px; height:34px; border-radius:10px;
+      background: radial-gradient(circle at 30% 30%, var(--accent) 0, #1af 40%, #126 70%);
+      box-shadow: 0 0 22px rgba(0,224,255,.45), inset 0 0 10px rgba(255,255,255,.25);
+    }
+    .brand h1{margin:0; font-size:1.1rem; letter-spacing:.5px; text-transform:none}
+    nav .item{
+      display:flex; align-items:center; gap:10px;
+      padding:10px 12px; border-radius:10px; margin:8px 0;
+      border:1px solid transparent; transition:.15s ease-in-out;
+      color:var(--text);
+    }
+    nav .item:hover{ border-color:var(--accent); background:rgba(0,224,255,.08) }
+    .item .ico{width:18px; text-align:center; opacity:.9}
+    .pill{
+      display:inline-block; padding:3px 8px; border:1px solid var(--line); border-radius:999px; font-size:.75rem; color:var(--muted)
+    }
+
+    /* main */
+    .main{ padding:26px; }
+    .toprow{ display:flex; justify-content:space-between; align-items:center; margin-bottom:12px }
+    .host{ padding:6px 10px; border-radius:999px; border:1px solid var(--line); background:#0b1430 }
+    .cards{ display:grid; grid-template-columns: 1fr 1fr 1fr; gap:18px; margin-top:18px }
+    .card{
+      background: linear-gradient(180deg,#0e1a39 0%, #0b1530 100%);
+      border:1px solid var(--line); border-radius:16px; padding:14px 16px; box-shadow:var(--shadow)
+    }
+    .card h3{margin:0 0 10px 0; font-size:1rem; color:#eaf2ff}
+    .actions button{
+      background: linear-gradient(135deg, var(--accent) 0%, #50f6ff 100%);
+      color:#001b2e; border:0; padding:8px 14px; border-radius:10px; font-weight:700; cursor:pointer
+    }
+    .actions button:hover{ filter:brightness(1.05) }
+    input[type="text"], input[type="number"]{
+      width:100%; padding:10px 12px; border-radius:10px; border:1px solid var(--line);
+      background:#0b1430; color:var(--text); margin:6px 0 10px 0
+    }
+
+    /* table */
+    .table-wrap{ background: linear-gradient(180deg,#0e1a39 0%, #0b1530 100%); border:1px solid var(--line); border-radius:16px; box-shadow:var(--shadow) }
+    table{ width:100%; border-collapse:separate; border-spacing:0; overflow:hidden }
+    thead th{
+      text-transform:lowercase; text-align:left; padding:12px; font-size:.9rem; border-bottom:1px solid var(--line);
+      background:linear-gradient(180deg,rgba(0,224,255,.08),rgba(0,224,255,0));
+    }
+    tbody td{ padding:12px; border-bottom:1px solid #13204a }
+    tbody tr:nth-child(odd){ background: rgba(255,255,255,.02) }
+    .muted{ color:var(--muted) }
+
+    /* responsive */
+    @media (max-width: 980px){
+      .layout{ grid-template-columns: 1fr; }
+      .sidebar{ position:relative; height:auto; }
+      .cards{ grid-template-columns: 1fr; }
+    }
   </style>
 </head>
 <body>
-  <header>
-    <h1>game scoreboard</h1>
-    <small>host: {{ host }}</small>
-  </header>
+  <div class="layout">
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="logo"></div>
+        <h1>game scoreboard</h1>
+      </div>
+      <nav>
+        <a class="item" href="{{ url_for('sort_view', key='name') }}"><span class="ico"></span> <span>sort by name</span></a>
+        <a class="item" href="{{ url_for('sort_view', key='game') }}"><span class="ico"></span> <span>sort by game</span></a>
+        <a class="item" href="{{ url_for('sort_view', key='score') }}"><span class="ico"></span> <span>sort by score (desc)</span></a>
+        <a class="item" href="{{ url_for('index', average=1, t=now_ms) }}"><span class="ico"></span> <span>average</span></a>
+        <a class="item" href="{{ url_for('index', t=now_ms) }}"><span class="ico"></span> <span>refresh</span></a>
+      </nav>
+      <div style="margin-top:12px"><span class="pill">demo: in‑memory</span></div>
+    </aside>
 
-  <div class="toolbar">
-    <a href="{{ url_for('sort_view', key='name') }}">sort by name</a>
-    <a href="{{ url_for('sort_view', key='game') }}">sort by game</a>
-    <a href="{{ url_for('sort_view', key='score') }}">sort by score (desc)</a>
-    <a href="{{ url_for('index', average=1) }}">average</a>
-    <a href="{{ url_for('index') }}">refresh</a>
-  </div>
+    <main class="main">
+      <div class="toprow">
+        <div class="muted">score table</div>
+        <div class="host">host: {{ host }}</div>
+      </div>
 
-  {% if average is defined %}
-    <p><strong>average score:</strong> {{ average }}</p>
-  {% endif %}
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr><th>name</th><th>game</th><th>score</th></tr>
+          </thead>
+          <tbody>
+            {% if scores %}
+              {% for row in scores %}
+                <tr>
+                  <td>{{ row.name if row.name is defined else row['name'] }}</td>
+                  <td>{{ row.game if row.game is defined else row['game'] }}</td>
+                  <td>{{ row.score if row.score is defined else row['score'] }}</td>
+                </tr>
+              {% endfor %}
+            {% else %}
+              <tr><td colspan="3" class="muted">no scores yet.</td></tr>
+            {% endif %}
+          </tbody>
+        </table>
+      </div>
 
-  <table>
-    <thead><tr><th>name</th><th>game</th><th>score</th></tr></thead>
-    <tbody>
-      {% if scores %}
-        {% for row in scores %}
-          <tr><td>{{ row.name if row.name is defined else row['name'] }}</td>
-              <td>{{ row.game if row.game is defined else row['game'] }}</td>
-              <td>{{ row.score if row.score is defined else row['score'] }}</td></tr>
-        {% endfor %}
-      {% else %}
-        <tr><td colspan="3" class="muted">no scores yet.</td></tr>
+      {% if average is not none %}
+        <p style="margin:12px 4px 0 4px"><strong>average score:</strong> {{ average }}</p>
       {% endif %}
-    </tbody>
-  </table>
 
-  <div class="grid">
-    <form action="/add" method="post">
-      <fieldset><legend>add score</legend>
-        <label>name</label><input name="name" type="text" required />
-        <label>game</label><input name="game" type="text" required />
-        <label>score</label><input name="score" type="number" step="any" required />
-        <div><button type="submit">add</button></div>
-      </fieldset>
-    </form>
+      <div class="cards">
+        <div class="card">
+          <h3>add score</h3>
+          <form action="/add" method="post">
+            <label>name</label><input name="name" type="text" required />
+            <label>game</label><input name="game" type="text" required />
+            <label>score</label><input name="score" type="number" step="any" required />
+            <div class="actions"><button type="submit">add</button></div>
+          </form>
+        </div>
 
-    <form action="/delete" method="post">
-      <fieldset><legend>delete by name (optional: by game)</legend>
-        <label>name</label><input name="name" type="text" required />
-        <label>game (optional)</label><input name="game" type="text" />
-        <div><button type="submit">delete</button></div>
-      </fieldset>
-    </form>
+        <div class="card">
+          <h3>delete by name <span class="muted">(optional: by game)</span></h3>
+          <form action="/delete" method="post">
+            <label>name</label><input name="name" type="text" required />
+            <label>game (optional)</label><input name="game" type="text" />
+            <div class="actions"><button type="submit">delete</button></div>
+          </form>
+        </div>
 
-    <form action="/edit" method="post">
-      <fieldset><legend>edit a score</legend>
-        <label>current name</label><input name="current_name" type="text" required />
-        <label>current game</label><input name="current_game" type="text" required />
-        <hr/>
-        <label>new name</label><input name="new_name" type="text" placeholder="(leave blank to keep)" />
-        <label>new game</label><input name="new_game" type="text" placeholder="(leave blank to keep)" />
-        <label>new score</label><input name="new_score" type="number" step="any" placeholder="(leave blank to keep)" />
-        <div><button type="submit">update</button></div>
-      </fieldset>
-    </form>
+        <div class="card">
+          <h3>edit a score</h3>
+          <form action="/edit" method="post">
+            <label>current name</label><input name="current_name" type="text" required />
+            <label>current game</label><input name="current_game" type="text" required />
+            <hr style="border-color:var(--line)">
+            <label>new name</label><input name="new_name" type="text" placeholder="(leave blank to keep)" />
+            <label>new game</label><input name="new_game" type="text" placeholder="(leave blank to keep)" />
+            <label>new score</label><input name="new_score" type="number" step="any" placeholder="(leave blank to keep)" />
+            <div class="actions"><button type="submit">update</button></div>
+          </form>
+        </div>
+      </div>
+    </main>
   </div>
-
-  <p class="muted">demo only: data is in-memory per worker/instance.</p>
 </body>
 </html>
