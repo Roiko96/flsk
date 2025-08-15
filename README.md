@@ -1,4 +1,4 @@
-# game scoreboard – docker on ec2 via cloudformation
+# game scoreboard – docker on ec2 via cloudformation aws
 
 - autoscaling group (min=2, desired=2, max=2). if one ec2 dies, asg launches a new one.
 - english index. container on port 5000. health: /healthz.
