@@ -12,7 +12,8 @@ cd flsk
 
 export AWS_DEFAULT_REGION=us-east-1
 aws sts get-caller-identity
-sudo apt install python3-flask
+sudo apt update && sudo apt upgrade -y
+sudo apt install python3-flask -y
 python3 application.py
 ```
 # destroy 
