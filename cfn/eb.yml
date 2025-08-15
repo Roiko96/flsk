@@ -1,1 +1,159 @@
 
+AWSTemplateFormatVersion: '2010-09-09'
+Description: flsk – flask docker app on elastic beanstalk (alb + 2 instances)
+
+Parameters:
+  ApplicationName:
+    Type: String
+    Default: game-scoreboard-app
+  EnvironmentName:
+    Type: String
+    Default: main
+  PlatformArn:
+    Type: String
+    Description: platform arn of "Docker running on 64bit Amazon Linux 2023"
+  AppS3Bucket:
+    Type: String
+    Description: s3 bucket with the uploaded app zip
+  AppS3Key:
+    Type: String
+    Description: s3 key (e.g. app.zip)
+  VpcId:
+    Type: AWS::EC2::VPC::Id
+  Subnets:
+    Type: List<AWS::EC2::Subnet::Id>
+    Description: instance subnets (2 azs)
+  LbSubnets:
+    Type: List<AWS::EC2::Subnet::Id>
+    Description: alb subnets (2 azs)
+  InstanceType:
+    Type: String
+    Default: t3.micro
+  MinSize:
+    Type: Number
+    Default: 2
+  MaxSize:
+    Type: Number
+    Default: 2
+  OpenAllTcp:
+    Type: String
+    AllowedValues: ['true','false']
+    Default: 'true'
+
+Conditions:
+  AllTcp: !Equals [ !Ref OpenAllTcp, 'true' ]
+
+Resources:
+  App:
+    Type: AWS::ElasticBeanstalk::Application
+    Properties:
+      ApplicationName: !Ref ApplicationName
+      Description: flask + docker demo
+
+  AppVersion:
+    Type: AWS::ElasticBeanstalk::ApplicationVersion
+    Properties:
+      ApplicationName: !Ref App
+      Description: v1
+      SourceBundle:
+        S3Bucket: !Ref AppS3Bucket
+        S3Key: !Ref AppS3Key
+
+  LbSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: alb sg (demo)
+      VpcId: !Ref VpcId
+      SecurityGroupEgress:
+        - IpProtocol: -1
+          CidrIp: 0.0.0.0/0
+      SecurityGroupIngress:
+        - !If
+          - AllTcp
+          - { IpProtocol: -1, CidrIp: 0.0.0.0/0 }
+          - { IpProtocol: tcp, FromPort: 80, ToPort: 80, CidrIp: 0.0.0.0/0 }
+        - !If
+          - AllTcp
+          - { Ref: AWS::NoValue }
+          - { IpProtocol: tcp, FromPort: 443, ToPort: 443, CidrIp: 0.0.0.0/0 }
+
+  InstanceSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: instances sg (demo)
+      VpcId: !Ref VpcId
+      SecurityGroupEgress:
+        - IpProtocol: -1
+          CidrIp: 0.0.0.0/0
+      SecurityGroupIngress:
+        - !If
+          - AllTcp
+          - { IpProtocol: -1, SourceSecurityGroupId: !GetAtt LbSecurityGroup.GroupId }
+          - { IpProtocol: tcp, FromPort: 5000, ToPort: 5000, SourceSecurityGroupId: !GetAtt LbSecurityGroup.GroupId }
+
+  Env:
+    Type: AWS::ElasticBeanstalk::Environment
+    Properties:
+      ApplicationName: !Ref App
+      EnvironmentName: !Ref EnvironmentName
+      PlatformArn: !Ref PlatformArn
+      VersionLabel: !Ref AppVersion
+      OptionSettings:
+        # env type + alb
+        - Namespace: aws:elasticbeanstalk:environment
+          OptionName: EnvironmentType
+          Value: LoadBalanced
+        - Namespace: aws:elasticbeanstalk:environment
+          OptionName: LoadBalancerType
+          Value: application
+        # vpc + subnets
+        - Namespace: aws:ec2:vpc
+          OptionName: VPCId
+          Value: !Ref VpcId
+        - Namespace: aws:ec2:vpc
+          OptionName: Subnets
+          Value: !Join [ ",", !Ref Subnets ]
+        - Namespace: aws:ec2:vpc
+          OptionName: ELBSubnets
+          Value: !Join [ ",", !Ref LbSubnets ]
+        # security groups
+        - Namespace: aws:autoscaling:launchconfiguration
+          OptionName: DisableDefaultEC2SecurityGroup
+          Value: 'true'
+        - Namespace: aws:autoscaling:launchconfiguration
+          OptionName: SecurityGroups
+          Value: !Ref InstanceSecurityGroup
+        - Namespace: aws:elbv2:loadbalancer
+          OptionName: SecurityGroups
+          Value: !Ref LbSecurityGroup
+        # capacity
+        - Namespace: aws:autoscaling:asg
+          OptionName: MinSize
+          Value: !Ref MinSize
+        - Namespace: aws:autoscaling:asg
+          OptionName: MaxSize
+          Value: !Ref MaxSize
+        - Namespace: aws:autoscaling:launchconfiguration
+          OptionName: InstanceType
+          Value: !Ref InstanceType
+        # app process + health + port
+        - Namespace: aws:elasticbeanstalk:application:environment
+          OptionName: PORT
+          Value: '5000'
+        - Namespace: aws:elasticbeanstalk:environment:process:default
+          OptionName: Port
+          Value: '5000'
+        - Namespace: aws:elasticbeanstalk:environment:process:default
+          OptionName: Protocol
+          Value: HTTP
+        - Namespace: aws:elasticbeanstalk:environment:process:default
+          OptionName: HealthCheckPath
+          Value: /healthz
+        - Namespace: aws:elasticbeanstalk:environment:process:default
+          OptionName: MatcherHTTPCode
+          Value: 200
+
+Outputs:
+  EndpointURL:
+    Description: environment url (alb)
+    Value: !GetAtt Env.EndpointURL
