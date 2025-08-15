@@ -16,6 +16,7 @@ sudo apt update && sudo apt upgrade -y
 sudo apt install python3-flask -y
 python3 application.py
 ```
+* go to ec2 - choose the relevant instance go to his sg and check if port 5000 is open to any in costum port (5000 ) = if not, open it and go back to the instance take the pip paste it un the url section :5000 and it will work .. with http ! no s 
 # destroy 
 ```
 aws cloudformation delete-stack --stack-name flsk-ec2
