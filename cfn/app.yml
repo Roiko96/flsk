@@ -30,11 +30,11 @@ Parameters:
   OpenAllTcp:
     Type: String
     AllowedValues: ['true','false']
-    Default: 'true'        # alb: all tcp for demo (set 'false' for 80/443 only)
+    Default: 'true'    
   EnableIpv6:
     Type: String
     AllowedValues: ['true','false']
-    Default: 'false'       # set 'true' ONLY if your VPC/subnets have IPv6 block
+    Default: 'false'    
   GitRepoUrl:
     Type: String
     Default: https://github.com/roiko96/flsk.git
@@ -89,12 +89,12 @@ Resources:
           - { IpProtocol: -1, CidrIpv6: ::/0 }
           - { Ref: AWS::NoValue }
       SecurityGroupIngress:
-        # world -> instance:5000 (IPv4)
+    
         - IpProtocol: tcp
           FromPort: !Ref ContainerPort
           ToPort: !Ref ContainerPort
           CidrIp: 0.0.0.0/0
-        # world -> instance:5000 (IPv6, optional)
+   
         - !If
           - UseIpv6
           - { IpProtocol: tcp, FromPort: !Ref ContainerPort, ToPort: !Ref ContainerPort, CidrIpv6: ::/0 }
@@ -179,8 +179,8 @@ Resources:
       MinSize: !Ref MinSize
       DesiredCapacity: !Ref DesiredCapacity
       MaxSize: !Ref MaxSize
-      HealthCheckType: ELB              # replace on ELB/EC2 unhealthy (incl. Stop/Terminate)
-      HealthCheckGracePeriod: 180       # מספיק זמן לבניית הדוקר
+      HealthCheckType: ELB           
+      HealthCheckGracePeriod: 180     
       TargetGroupARNs: [ !Ref TargetGroup ]
       LaunchTemplate:
         LaunchTemplateId: !Ref LaunchTemplate
